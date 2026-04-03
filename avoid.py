@@ -23,7 +23,8 @@ def main():
         is_avoiding_front = False
         turn_left_to_avoid = False
         avoid_label = ""
-        escape_counter = 0
+        reverse_counter = 0
+        turn_counter = 0
         wrap_counter = 0
         position_history = []
         
@@ -41,13 +42,14 @@ def main():
             if len(position_history) > 6:
                 position_history.pop(0) # Keep 0.6 seconds of history
                 
-            if len(position_history) == 6 and escape_counter == 0:
+            if len(position_history) == 6 and reverse_counter == 0 and turn_counter == 0:
                 old_pos = position_history[0]
                 dist_moved = ((current_pos[0] - old_pos[0])**2 + (current_pos[1] - old_pos[1])**2)**0.5
                 
                 # Crash detected
-                if dist_moved < 0.03 and prev_state not in ["AVOID_FRONT", "DEAD_END", "ESCAPE", "UNKNOWN"]:
-                    escape_counter = 8
+                if dist_moved < 0.03 and prev_state not in ["AVOID_FRONT", "DEAD_END", "REVERSE", "ESCAPE_TURN", "UNKNOWN"]:
+                    reverse_counter = 5  # Back straight up gracefully
+                    turn_counter = 6     # Then spin fully away
                     position_history.clear()
 
             # Default to wander speeds
@@ -70,35 +72,30 @@ def main():
                 is_avoiding_front = False
 
             # Finite State Machine Evaluation
-            if escape_counter > 0:
-                state = "ESCAPE"
+            if reverse_counter > 0:
+                state = "REVERSE"
+                left_speed = -0.6
+                right_speed = -0.6
+                reverse_counter -= 1
                 
-                # Adapt reverse velocity based on rear distance (Stop reversing if < 0.2m)
-                safe_reverse = max(-0.6, -1.5 * (rear_dist - 0.2))
-                if rear_dist < 0.2: safe_reverse = 0.0
-                
-                # Add turning to the reverse to spin away from the trap
+            elif turn_counter > 0:
+                state = "ESCAPE_TURN"
+                # Pure spin in place
                 if left_dist > right_dist:
-                    left_speed = safe_reverse - 0.4
-                    right_speed = safe_reverse + 0.4
+                    left_speed = -0.6
+                    right_speed = 0.6
                 else:
-                    left_speed = safe_reverse + 0.4
-                    right_speed = safe_reverse - 0.4
-                    
-                # Clamp speeds
-                left_speed = max(-0.8, min(0.8, left_speed))
-                right_speed = max(-0.8, min(0.8, right_speed))
-                
-                escape_counter -= 1
+                    left_speed = 0.6
+                    right_speed = -0.6
+                turn_counter -= 1
                 is_avoiding_front = False
                 
             elif min(sonar[2], sonar[3], sonar[4], sonar[5]) < 0.15:
-                # If anything in the front 60 degrees is dangerously close
-                escape_counter = 4
-                state = "ESCAPE"
+                # Emergency Bumper: Creates breathing room for tight spaces (preserves memory variables!)
+                reverse_counter = 4
+                state = "REVERSE"
                 left_speed = -0.6
                 right_speed = -0.6
-                is_avoiding_front = False
                 
             elif is_avoiding_front:
                 state = avoid_label
@@ -131,7 +128,7 @@ def main():
                 if wrap_counter > 0:
                     state = "WRAP_LEFT"
                     # Turn radius R=0.3m matching TARGET_DIST! No overshoot.
-                    left_speed = 0.1
+                    left_speed = 0.1   
                     right_speed = BASE_SPEED 
                     wrap_counter -= 1
                 else:
@@ -171,7 +168,9 @@ def main():
                     left_speed = BASE_SPEED
                     right_speed = BASE_SPEED
 
-            prev_state = state
+            # Prevent reflexive states from shattering FSM state tracking!
+            if state not in ["REVERSE", "ESCAPE_TURN"]:
+                prev_state = state
 
             robot.set_speed(left_speed, right_speed)
             print(f"[{state:<12}] F:{front_dist:.2f} L:{left_dist:.2f} R:{right_dist:.2f} | M:({left_speed:+.2f}, {right_speed:+.2f})         ", end="\r")
