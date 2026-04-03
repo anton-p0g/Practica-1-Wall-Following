@@ -122,7 +122,13 @@ def main():
                 diff = min(diff, 0.15)
                 left_speed = BASE_SPEED - diff
                 right_speed = BASE_SPEED + diff
-                
+            
+            elif prev_state in ["FOLLOW_LEFT", "WRAP_LEFT"] and left_dist >= 0.6:
+                state = "WRAP_LEFT"
+                # Sharp left turn
+                left_speed = 0.1   
+                right_speed = BASE_SPEED + 0.1
+            
             elif right_dist < 0.6:
                 state = "FOLLOW_RIGHT"
                 error = right_dist - TARGET_DIST
@@ -138,6 +144,12 @@ def main():
                 diff = min(diff, 0.15)
                 left_speed = BASE_SPEED + diff
                 right_speed = BASE_SPEED - diff
+            
+            elif prev_state in ["FOLLOW_RIGHT", "WRAP_RIGHT"] and right_dist >= 0.6:
+                state = "WRAP_RIGHT"
+                # Sharp right turn
+                left_speed = BASE_SPEED + 0.1   
+                right_speed = 0.1
 
             prev_state = state
 
