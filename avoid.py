@@ -24,6 +24,7 @@ def main():
         turn_left_to_avoid = False
         avoid_label = ""
         escape_counter = 0
+        wrap_counter = 0
         position_history = []
         
         while coppelia.is_running():
@@ -124,10 +125,20 @@ def main():
                 right_speed = BASE_SPEED + diff
             
             elif prev_state in ["FOLLOW_LEFT", "WRAP_LEFT"] and left_dist >= 0.6:
-                state = "WRAP_LEFT"
-                # Sharp left turn
-                left_speed = 0.1   
-                right_speed = BASE_SPEED + 0.1
+                if prev_state == "FOLLOW_LEFT":
+                    wrap_counter = 15  # Timeout: 1.5s * 1.05 rad/s = 90 degrees
+                
+                if wrap_counter > 0:
+                    state = "WRAP_LEFT"
+                    # Turn radius R=0.3m matching TARGET_DIST! No overshoot.
+                    left_speed = 0.1
+                    right_speed = BASE_SPEED 
+                    wrap_counter -= 1
+                else:
+                    # No wall exists here, go straight to escape the loop.
+                    state = "WANDER"
+                    left_speed = BASE_SPEED
+                    right_speed = BASE_SPEED
             
             elif right_dist < 0.6:
                 state = "FOLLOW_RIGHT"
@@ -146,10 +157,19 @@ def main():
                 right_speed = BASE_SPEED - diff
             
             elif prev_state in ["FOLLOW_RIGHT", "WRAP_RIGHT"] and right_dist >= 0.6:
-                state = "WRAP_RIGHT"
-                # Sharp right turn
-                left_speed = BASE_SPEED + 0.1   
-                right_speed = 0.1
+                if prev_state == "FOLLOW_RIGHT":
+                    wrap_counter = 15  # 90-degree convex corner wrap timeout
+                
+                if wrap_counter > 0:
+                    state = "WRAP_RIGHT"
+                    # Turn radius R=0.3m matching TARGET_DIST! No overshoot.
+                    left_speed = BASE_SPEED   
+                    right_speed = 0.1
+                    wrap_counter -= 1
+                else:
+                    state = "WANDER"
+                    left_speed = BASE_SPEED
+                    right_speed = BASE_SPEED
 
             prev_state = state
 
