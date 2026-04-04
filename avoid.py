@@ -38,19 +38,26 @@ def main():
             
             # Odometry for Stall Detection
             current_pos = robot.get_position()
-            position_history.append(current_pos)
-            if len(position_history) > 6:
-                position_history.pop(0) # Keep 0.6 seconds of history
-                
-            if len(position_history) == 6 and reverse_counter == 0 and turn_counter == 0:
-                old_pos = position_history[0]
-                dist_moved = ((current_pos[0] - old_pos[0])**2 + (current_pos[1] - old_pos[1])**2)**0.5
-                
-                # Crash detected
-                if dist_moved < 0.03 and prev_state not in ["AVOID_FRONT", "DEAD_END", "REVERSE", "ESCAPE_TURN", "UNKNOWN"]:
-                    reverse_counter = 5  # Back straight up gracefully
-                    turn_counter = 6     # Then spin fully away
-                    position_history.clear()
+            
+            # SOLO guardamos historial si NO estamos ejecutando una maniobra de escape
+            if reverse_counter == 0 and turn_counter == 0:
+                position_history.append(current_pos)
+                if len(position_history) > 6:
+                    position_history.pop(0) # Keep 0.6 seconds of history
+                    
+                if len(position_history) == 6:
+                    old_pos = position_history[0]
+                    dist_moved = ((current_pos[0] - old_pos[0])**2 + (current_pos[1] - old_pos[1])**2)**0.5
+                    
+                    # Crash detected
+                    if dist_moved < 0.03 and prev_state not in ["AVOID_FRONT", "DEAD_END", "REVERSE", "ESCAPE_TURN", "UNKNOWN"]:
+                        reverse_counter = 5  # Back straight up gracefully
+                        turn_counter = 8     # Aumentado un poco para asegurar que no mire a la escalera
+                        position_history.clear()
+            else:
+                # Si estamos escapando, vaciamos el historial para que al terminar 
+                # empiece a contar desde cero con la nueva trayectoria limpia.
+                position_history.clear()
 
             # Default to wander speeds
             state = "WANDER"
